@@ -210,13 +210,15 @@ class BaseAgent(ABC):
 
         self.learning_steps += 1
 
-        if self.use_per:
-            batch, weights = self.memory.sample(self.batch_size)
-        else:
-            batch = self.memory.sample(self.batch_size)
-            # Set priority weights to 1 when we don't use PER.
-            weights = 1.
-
+        # if self.use_per:
+        #     batch, weights = self.memory.sample(self.batch_size)
+        # else:
+        #     batch = self.memory.sample(self.batch_size)
+        #     # Set priority weights to 1 when we don't use PER.
+        #     weights = 1.
+        batch = self.prep_minibatch()
+        weights = 1.
+        
         q1_loss, q2_loss, errors, mean_q1, mean_q2 = \
             self.calc_critic_loss(batch, weights)
         policy_loss, entropies = self.calc_policy_loss(batch, weights)
