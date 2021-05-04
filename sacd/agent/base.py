@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from sacd.memory import LazyMultiStepMemory, LazyPrioritizedMultiStepMemory
+from sacd.memory import  RecurrentMemory
 from sacd.utils import update_params, RunningMeanStats
 
 
@@ -32,19 +32,25 @@ class BaseAgent(ABC):
             "cuda" if cuda and torch.cuda.is_available() else "cpu")
 
         # LazyMemory efficiently stores FrameStacked states.
-        if use_per:
-            beta_steps = (num_steps - start_steps) / update_interval
-            self.memory = LazyPrioritizedMultiStepMemory(
+        # if use_per:
+        #     beta_steps = (num_steps - start_steps) / update_interval
+        #     self.memory = LazyPrioritizedMultiStepMemory(
+        #         capacity=memory_size,
+        #         state_shape=self.env.observation_space.shape,
+        #         device=self.device, gamma=gamma, multi_step=multi_step,
+        #         beta_steps=beta_steps)
+        # else:
+        #     self.memory = LazyMultiStepMemory(
+        #         capacity=memory_size,
+        #         state_shape=self.env.observation_space.shape,
+        #         device=self.device, gamma=gamma, multi_step=multi_step)
+            
+        self.memory = RecurrentMemory(
                 capacity=memory_size,
-                state_shape=self.env.observation_space.shape,
-                device=self.device, gamma=gamma, multi_step=multi_step,
-                beta_steps=beta_steps)
-        else:
-            self.memory = LazyMultiStepMemory(
-                capacity=memory_size,
-                state_shape=self.env.observation_space.shape,
-                device=self.device, gamma=gamma, multi_step=multi_step)
-
+                state_shape=self.env.observation_space.shape, 
+                device=self.device,
+                sequen_len = 6)
+        
         self.log_dir = log_dir
         self.model_dir = os.path.join(log_dir, 'model')
         self.summary_dir = os.path.join(log_dir, 'summary')
@@ -71,6 +77,10 @@ class BaseAgent(ABC):
         self.max_episode_steps = max_episode_steps
         self.log_interval = log_interval
         self.eval_interval = eval_interval
+        
+        self._states = self.env.reset()
+        self.num_feats = self.env.observation_space.shape[0]
+        self.sequence_length = 6
 
     def run(self):
         while True:
@@ -130,16 +140,21 @@ class BaseAgent(ABC):
                 action = self.explore(state)
 
             next_state, reward, done, _ = self.env.step(action)
+            
+            self._status = torch.cat((next_state, self._status), 0)
+            if self._status.shape[0] > 6:
+                 self._status =  self._status[:6]
+            self._status = self._status.view(1,self._status.shape[0],-1)  
 
             # Clip reward to [-1.0, 1.0].
-            clipped_reward = max(min(reward, 1.0), -1.0)
+            #clipped_reward = max(min(reward, 1.0), -1.0)
 
             # To calculate efficiently, set priority=max_priority here.
-            self.memory.append(state, action, clipped_reward, next_state, done)
+            self.memory.push((state, action, reward, next_state))
 
             self.steps += 1
             episode_steps += 1
-            episode_return += reward
+            episode_return += 28. #reward
             state = next_state
 
             if self.is_update():
@@ -163,6 +178,32 @@ class BaseAgent(ABC):
               f'Episode steps: {episode_steps:<4}  '
               f'Return: {episode_return:<5.1f}')
 
+    def prep_minibatch(self):
+        transitions = self.memory.sample(self.batch_size)
+
+        batch_state, batch_action, batch_reward, batch_next_state = zip(*transitions)
+
+        shape = (self.batch_size,self.sequence_length)+self.num_feats
+
+        batch_state = torch.tensor(batch_state, device=self.device, dtype=torch.float).view(shape)
+        batch_action = torch.tensor(batch_action, device=self.device, dtype=torch.long).view(self.batch_size, self.sequence_length, -1)
+        batch_reward = torch.tensor(batch_reward, device=self.device, dtype=torch.float).view(self.batch_size, self.sequence_length)
+        #get set of next states for end of each sequence
+        batch_next_state = tuple([batch_next_state[i] for i in range(len(batch_next_state)) if (i+1)%(self.sequence_length)==0])
+        
+        non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch_next_state)), device=self.device, dtype=torch.uint8)
+        
+        try: #sometimes all next states are false, especially with nstep returns
+            non_final_next_states = torch.tensor([s for s in batch_next_state if s is not None], device=self.device, dtype=torch.float).unsqueeze(dim=1)
+            non_final_next_states = torch.cat([batch_state[non_final_mask, 1:, :], non_final_next_states], dim=1)
+            empty_next_state_values = False
+        except:
+            empty_next_state_values = True
+        
+
+        return batch_state, batch_action, batch_reward, non_final_next_states, non_final_mask, empty_next_state_values
+    
+    
     def learn(self):
         assert hasattr(self, 'q1_optim') and hasattr(self, 'q2_optim') and\
             hasattr(self, 'policy_optim') and hasattr(self, 'alpha_optim')

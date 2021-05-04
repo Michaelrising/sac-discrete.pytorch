@@ -23,12 +23,15 @@ class SacdAgent(BaseAgent):
             target_update_interval, use_per, num_eval_steps, max_episode_steps,
             log_interval, eval_interval, cuda, seed)
 
+    
         # Define networks.
+        #Actor network 
         self.policy = CateoricalPolicy(
             self.env.observation_space.shape[0], self.env.action_space.n
             ).to(self.device)
+        # critic network
         self.online_critic = TwinnedQNetwork(
-            self.env.observation_space.shape[0], self.env.action_space.n,
+            self.env.observation_space.shape[0],self.env.action_space.n,
             dueling_net=dueling_net).to(device=self.device)
         self.target_critic = TwinnedQNetwork(
             self.env.observation_space.shape[0], self.env.action_space.n,
@@ -72,7 +75,7 @@ class SacdAgent(BaseAgent):
     def update_target(self):
         self.target_critic.load_state_dict(self.online_critic.state_dict())
 
-    def calc_current_q(self, states, actions, rewards, next_states, dones):
+    def calc_current_q(self, states, actions, rewards):
         curr_q1, curr_q2 = self.online_critic(states)
         curr_q1 = curr_q1.gather(1, actions.long())
         curr_q2 = curr_q2.gather(1, actions.long())
@@ -90,8 +93,11 @@ class SacdAgent(BaseAgent):
         return rewards + (1.0 - dones) * self.gamma_n * next_q
 
     def calc_critic_loss(self, batch, weights):
-        curr_q1, curr_q2 = self.calc_current_q(*batch)
-        target_q = self.calc_target_q(*batch)
+        batch_state, batch_action, batch_reward, non_final_next_states, non_final_mask, empty_next_state_values = zip(*batch)
+        
+        curr_q1, curr_q2 = self.calc_current_q(batch_state, batch_action, batch_reward)
+        
+        target_q = self.calc_target_q(batch_state, batch_action, batch_reward, non_final_next_states,non_final_mask)
 
         # TD errors for updating priority weights
         errors = torch.abs(curr_q1.detach() - target_q)
