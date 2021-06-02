@@ -15,7 +15,7 @@ import pandas as pd
 
 
 patientNo = 11
-os.chdir("/Users/michael/OneDrive - City University of Hong Kong/Project/Net Embedding_RL_Cancer/CancerNN/Model_creation")
+os.chdir("../Model_creation")
 pars = pd.read_csv("pars_patient11.csv")
 pars = pars.to_numpy().reshape(-1)
 pars = torch.from_numpy(pars).float().requires_grad_()
@@ -28,7 +28,7 @@ e = torch.tensor([[1], [0.5]], dtype = torch.float) # AD is 5 times more competi
 A = r * e#torch.tensor([1.,0.9,0.9,1.], dtype = torch.float).view(2,2)
 alpha = torch.tensor([0.462], dtype = torch.float)  
 
-os.chdir("/Users/michael/Documents/GitHub/sac-discrete.pytorch")
+os.chdir("../SAC")
 
 patient = (A, alpha, K, pars)#{"A": A, "alpha": alpha, "K": K, "pars": pars}
 
