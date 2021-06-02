@@ -15,7 +15,7 @@ class BaseAgent(ABC):
                  target_entropy_ratio=0.98, start_steps=20000,
                  update_interval=4, target_update_interval=8000,
                  use_per=False, num_eval_steps=125000, max_episode_steps=10000,
-                 log_interval=10, eval_interval=1000, cuda=True, seed=0):
+                 log_interval=10, eval_interval=500, cuda=True, seed=0):
         super().__init__()
         self.env = env
         self.test_env = test_env
@@ -159,7 +159,7 @@ class BaseAgent(ABC):
             if self.steps % self.target_update_interval == 0:
                 self.update_target()
 ########################
-            if self.steps %10 == 0: #% self.eval_interval == 0:
+            if self.steps % self.eval_interval == 0:
                 self.evaluate()
                 self.save_models(os.path.join(self.model_dir, 'final'))
 
