@@ -3,7 +3,7 @@ import yaml
 import argparse
 from datetime import datetime
 
-from sacd.env import make_pytorch_env
+#from sacd.env import make_pytorch_env
 from sacd.agent import SacdAgent
 
 
