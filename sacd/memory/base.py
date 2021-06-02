@@ -146,17 +146,14 @@ class RecurrentMemory(LazyMemory):
     def __init__(self, capacity, state_shape, device, sequen_len = 6):
         super(RecurrentMemory, self).__init__(
             capacity, state_shape, device)
-        self.capacity = capacity
-        self.memory = []
         self.seq_length = sequen_len
         
-    def push(self, transition):
-        self.memory.append(transition)
-        if len(self.memory) > self.capacity:
-            del self.memory[0]
+    def push(self, *transition):
+        state, action, reward, next_state, done = transition
+        self.append(state, action, reward, next_state, done)
 
     def sample(self, batch_size):
-        finish = random.sample(range(0, len(self.memory)), batch_size)
+        finish = random.sample(range(0, len(self)), batch_size)
         begin = [x-self.seq_length for x in finish]
         samp = []
         for start, end in zip(begin, finish):
@@ -178,6 +175,4 @@ class RecurrentMemory(LazyMemory):
         #returns flattened version
         return samp
 
-    def __len__(self):
-        return len(self.memory)
 

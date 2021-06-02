@@ -14,7 +14,7 @@ class BaseAgent(ABC):
                  memory_size=1000000, gamma=0.99, multi_step=1,
                  target_entropy_ratio=0.98, start_steps=20000,
                  update_interval=4, target_update_interval=8000,
-                 use_per=False, num_eval_steps=125000, max_episode_steps=27000,
+                 use_per=False, num_eval_steps=125000, max_episode_steps=10000,
                  log_interval=10, eval_interval=1000, cuda=True, seed=0):
         super().__init__()
         self.env = env
@@ -140,21 +140,17 @@ class BaseAgent(ABC):
                 action = self.explore(state)
 
             next_state, reward, done, _ = self.env.step(action)
-            
-            self._status = torch.cat((next_state, self._status), 0)
-            if self._status.shape[0] > 6:
-                 self._status =  self._status[:6]
-            self._status = self._status.view(1,self._status.shape[0],-1)  
+             
 
             # Clip reward to [-1.0, 1.0].
             #clipped_reward = max(min(reward, 1.0), -1.0)
 
             # To calculate efficiently, set priority=max_priority here.
-            self.memory.push((state, action, reward, next_state))
+            self.memory.push(state, action, reward, next_state, done)
 
             self.steps += 1
             episode_steps += 1
-            episode_return += 28. #reward
+            episode_return += reward
             state = next_state
 
             if self.is_update():
@@ -162,8 +158,8 @@ class BaseAgent(ABC):
 
             if self.steps % self.target_update_interval == 0:
                 self.update_target()
-
-            if self.steps % self.eval_interval == 0:
+########################
+            if self.steps %10 == 0: #% self.eval_interval == 0:
                 self.evaluate()
                 self.save_models(os.path.join(self.model_dir, 'final'))
 
@@ -268,13 +264,19 @@ class BaseAgent(ABC):
             episode_steps = 0
             episode_return = 0.0
             done = False
+            state_memory = state.reshape(1,-1) # batch = 1, seq_len, features
             while (not done) and episode_steps <= self.max_episode_steps:
-                action = self.exploit(state)
+                #print(episode_steps )
+                action = self.exploit(state_memory)
+                #print(action)
                 next_state, reward, done, _ = self.test_env.step(action)
                 num_steps += 1
                 episode_steps += 1
                 episode_return += reward
-                state = next_state
+                state = next_state.reshape(1,-1)
+                state_memory = np.insert(state_memory, state_memory.shape[0] , values=state, axis=0)
+                if episode_steps >= 6:
+                    state_memory = np.delete(state_memory, 0, axis = 0)
 
             num_episodes += 1
             total_return += episode_return

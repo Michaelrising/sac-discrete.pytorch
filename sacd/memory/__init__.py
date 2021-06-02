@@ -1,2 +1,2 @@
-from .base import LazyMultiStepMemory
+from .base import LazyMultiStepMemory, RecurrentMemory
 from .per import LazyPrioritizedMultiStepMemory

@@ -4,26 +4,14 @@ import argparse
 from datetime import datetime
 
 from sacd.env import make_pytorch_env
-from sacd.agent import SacdAgent, SharedSacdAgent
+from sacd.agent import SacdAgent
 
 
 import gym
-import math
-import random
-import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
-from collections import namedtuple, deque
-from itertools import count
-from PIL import Image
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import torchvision.transforms as T
 import pandas as pd
-import gym_cancer
+
 
 
 patientNo = 11
@@ -40,15 +28,17 @@ e = torch.tensor([[1], [0.5]], dtype = torch.float) # AD is 5 times more competi
 A = r * e#torch.tensor([1.,0.9,0.9,1.], dtype = torch.float).view(2,2)
 alpha = torch.tensor([0.462], dtype = torch.float)  
 
-patient = {"A": A, "alpha": alpha, "K": K, "pars": pars}
+os.chdir("/Users/michael/Documents/GitHub/sac-discrete.pytorch")
 
-# env_dict = gym.envs.registration.registry.env_specs.copy()
-# for env in env_dict:
-#     if 'CancerControl-v0' in env:
-#         print("Remove {} from registry".format(env))
-#         del gym.envs.registration.registry.env_specs[env]
+patient = (A, alpha, K, pars)#{"A": A, "alpha": alpha, "K": K, "pars": pars}
 
+env_dict = gym.envs.registration.registry.env_specs.copy()
+for env in env_dict:
+    if 'CancerControl-v0' in env:
+        print("Remove {} from registry".format(env))
+        del gym.envs.registration.registry.env_specs[env]
 
+import gym_cancer
 
 
 def run(args):
